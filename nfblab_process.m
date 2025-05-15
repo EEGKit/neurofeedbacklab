@@ -650,6 +650,9 @@ while 1
                 end
                 
                 % Apply linear transformation (get channel Fz at that point)
+                if size(EEG.data,1) < size(g.input.chanmask,2)
+                    g.input.chanmask(:,size(EEG.data,1)+1:end) = [];
+                end
                 spatiallyFilteredData = g.input.chanmask*EEG.data;
 
                 % Perform spectral decomposition - taper the data with hamming
@@ -667,21 +670,18 @@ while 1
                 end
 
                 % convert spectral array if needed
-                if strcmpi(g.measure.freqprocessmode, 'struct')
-                    dataSpecSelectStruct = [];
-                    for iChan = 1:size(dataSpecSelect,1)
-                       for iFreq = 1:size(dataSpecSelect,2)
-                           % Organize the data as folow dataSpecSelectStruct.theta.Fz
-                           dataSpecSelectStruct.(g.measure.freqlabels{iFreq}).(g.input.chanlocs(iChan).labels) = dataSpecSelect(iChan, iFreq);
-                       end
-                    end
-                    % compute metric of interest
-                    for iProcess = 1:length(freqprocessFields)
+                dataSpecSelectStruct = [];
+                for iChan = 1:min(length(g.input.chanlocs), size(dataSpecSelect,1))
+                   for iFreq = 1:min(length(g.measure.freqlabels), size(dataSpecSelect,2))
+                       % Organize the data as folow dataSpecSelectStruct.theta.Fz
+                       dataSpecSelectStruct.(g.measure.freqlabels{iFreq}).(g.input.chanlocs(iChan).labels) = dataSpecSelect(iChan, iFreq);
+                   end
+                end
+                % compute metric of interest
+                for iProcess = 1:length(freqprocessFields)
+                    if contains(char(g.measure.freqprocess.(freqprocessFields{iProcess})), '.') % could create problems if there is a decimal number 1.7 instead of structure
                         results.(freqprocessFields{iProcess}) = feval(g.measure.freqprocess.(freqprocessFields{iProcess}), dataSpecSelectStruct);
-                    end
-                else         
-                    % compute metric of interest
-                    for iProcess = 1:length(freqprocessFields)
+                    else
                         results.(freqprocessFields{iProcess}) = feval(g.measure.freqprocess.(freqprocessFields{iProcess}), dataSpecSelect);
                     end
                 end
@@ -723,6 +723,10 @@ while 1
                 if ~isinf(X)
                     if g.feedback.zbaseline
                         % update mean and mean2
+                        if ~isfield(g.feedback, 'zmean')
+                            g.feedback.zmean  = 0;
+                            g.feedback.zmean2 = 0;
+                        end
                         g.feedback.zmean  = g.feedback.zMem*g.feedback.zmean  + (1-g.feedback.zMem)*X;
                         g.feedback.zmean2 = g.feedback.zMem*g.feedback.zmean2 + (1-g.feedback.zMem)*(X^2);
 

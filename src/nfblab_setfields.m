@@ -51,7 +51,6 @@ allowedFields = {
     'measure'   'freqlabels'     { }           'Frequency band labels of interest.';
     'measure'   'freqdb'         true      'Convert power to dB scale (true or false).'; % convert power to dB
     'measure'   'freqprocess'     struct('thetaChan1', @(x)x(1)) 'Structure with function in each field. Default is theta power of channel 1.';
-    'measure'   'freqprocessmode' 'array' 'Use array ''array'' or structure ''struct'' to process spectral data (see examples).';
     'measure'   'addfreqprocess' ''        '';
     'measure'   'loretaFlag'     false     'Flag to compute eLoreta (beta).';
     'measure'   'loreta_file'    ''        'Loreta file to provide as input.';
@@ -215,24 +214,17 @@ end
 % check chanlocs
 if ~isempty(g.input.chanlocs)
     if length(g.input.chanlocs) ~= g.input.chans
-        error('The length of ''chanlocs'' input must be the same as the ''chans'' parameter')
-    end
-end
-
-% check frequency band labels
-if ~isempty(g.measure.freqlabels)
-    if length(g.measure.freqlabels) ~= length(g.measure.freqrange)
-        error('The length of frequency band labels (freqlabels) and frequency band ranges need to be the same')
+        fprintf(2, 'The length of ''chanlocs'' input is not the same as the ''chans'' parameter, some channels will be ignored\n')
     end
 end
 
 % check for freqprocessmode
-if strcmpi(g.measure.freqprocessmode, 'struct')
-    if isempty(g.input.chanlocs)
-        error('You need to provide channel location structure with channel labels when using the ''struct'' freqprocessmode option')
+if ~isempty(g.measure.freqlabels)
+    if length(g.measure.freqlabels) ~= length(g.measure.freqrange)
+        error('The length of frequency band labels (freqlabels) and frequency band ranges need to be the same')
     end
-    if isempty(g.measure.freqlabels)
-        error('You need to provide frequency band labels when using the ''struct'' freqprocessmode option')
+    if isempty(g.input.chanlocs)
+        error('You need to provide channel location structure with channel labels when using ''freqlabels'' option')
     end
 end
 
