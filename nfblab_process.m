@@ -345,6 +345,12 @@ while 1
             end
             
             g = nfblab_setfields(g, fieldJson{iField}, structResp.options.(fieldJson{iField}));
+            if isequal(fieldJson{iField}, 'chans')
+                dataBuffer     = zeros(length(g.input.chans), (g.input.windowSize*2)/g.input.srate*g.input.srateHardware);
+                dataBufferFilt = zeros(length(g.input.chans), (g.input.windowSize*2)/g.input.srate*g.input.srateHardware);
+                dataAccuOri  = zeros(length(g.input.chans), (g.session.sessionDuration+3)*g.input.srate, g.preproc.precision); % to save the data
+                dataAccuFilt = zeros(length(g.input.chans), (g.session.sessionDuration+3)*g.input.srate, g.preproc.precision); % to save the data
+            end
             
             % handle freqprocess parameter
             if ~isempty(g.custom) && ~isempty(findstr(fieldJson{iField}, g.custom.field))
@@ -372,7 +378,21 @@ while 1
                 result = {};
                 result = nfblab_findlslstream(lib,g.input.lsltype,g.input.lslname);
                 disp('Opening an inlet...');
-                inlet = lsl_inlet(result{1});
+                inlet = lsl_inlet(result{1}); % 2nd param is buffer range if needed
+                chanlocs_names = derive_channel_labels(inlet.info());
+                if isempty(g.input.chans)
+                    g.input.chans = 1:length(chanlocs_names);
+                    dataBuffer     = zeros(length(g.input.chans), (g.input.windowSize*2)/g.input.srate*g.input.srateHardware);
+                    dataBufferFilt = zeros(length(g.input.chans), (g.input.windowSize*2)/g.input.srate*g.input.srateHardware);
+                    dataAccuOri  = zeros(length(g.input.chans), (g.session.sessionDuration+3)*g.input.srate, g.preproc.precision); % to save the data
+                    dataAccuFilt = zeros(length(g.input.chans), (g.session.sessionDuration+3)*g.input.srate, g.preproc.precision); % to save the data
+                end
+                if isempty(g.input.chanlocs)
+                    g.input.chanlocs = struct('labels', chanlocs_names);
+                    for iChan = 1:length(g.input.chanlocs)
+                        fprintf('Channel name %d -> %s\n', g.input.chanlocs(iChan).labels)
+                    end
+                end
                 disp('Now receiving chunked data...');
             end
 
@@ -478,7 +498,9 @@ while 1
         EEG.srate  = g.input.srate;
         EEG.xmin   = 0;
         if isfield(g.input, 'chanlocs') && ~isempty(g.input.chanlocs)
-            EEG.chanlocs = g.input.chanlocs(g.input.chans); % required for Loreta
+            if length(EEG.chanlocs) > max(g.input.chans)
+                EEG.chanlocs = g.input.chanlocs(g.input.chans); % required for Loreta
+            end
         else
             EEG.chanlocs = [];
         end
@@ -678,9 +700,18 @@ while 1
                    end
                 end
                 % compute metric of interest
+                warningShown = false;
                 for iProcess = 1:length(freqprocessFields)
-                    if contains(char(g.measure.freqprocess.(freqprocessFields{iProcess})), '.') % could create problems if there is a decimal number 1.7 instead of structure
-                        results.(freqprocessFields{iProcess}) = feval(g.measure.freqprocess.(freqprocessFields{iProcess}), dataSpecSelectStruct);
+                    if contains(char(g.measure.freqprocess.(freqprocessFields{iProcess})), '.') % delect Cz.theta format; could create problems if there is a decimal number 1.7 instead of structure
+                        if contains(char(g.measure.freqprocess.(freqprocessFields{iProcess})), {g.input.chanlocs.labels })
+                            results.(freqprocessFields{iProcess}) = feval(g.measure.freqprocess.(freqprocessFields{iProcess}), dataSpecSelectStruct);
+                        else
+                            if ~warningShown
+                                fprintf(2, 'Skipping formula because of incorrect channel names\n');
+                                warningShown = true;
+                            end
+                            results.(freqprocessFields{iProcess}) = -1;
+                        end
                     else
                         results.(freqprocessFields{iProcess}) = feval(g.measure.freqprocess.(freqprocessFields{iProcess}), dataSpecSelect);
                     end
@@ -841,15 +872,28 @@ if ~isempty(g.feedback.funcend)
 end
 
 function S = cpsd_welch(X,window,noverlap, nfft)
-
-h = nfft/2+1;
-n = size(X,1);
-S = complex(zeros(n,n,h));
-for i = 1:n
-    S(i,i,:) = pwelch(X(i,:),window,noverlap,nfft);          % auto-spectra
-    for j = i+1:n % so we don't compute cross-spectra twice
-        S(i,j,:) = cpsd(X(i,:),X(j,:),window,noverlap,nfft); % cross-spectra
+    h = nfft/2+1;
+    n = size(X,1);
+    S = complex(zeros(n,n,h));
+    for i = 1:n
+        S(i,i,:) = pwelch(X(i,:),window,noverlap,nfft);          % auto-spectra
+        for j = i+1:n % so we don't compute cross-spectra twice
+            S(i,j,:) = cpsd(X(i,:),X(j,:),window,noverlap,nfft); % cross-spectra
+        end
     end
-end
-S = S/pi; % the 'pi' is for compatibility with 'autocov_to_cpsd' routine
+    S = S/pi; % the 'pi' is for compatibility with 'autocov_to_cpsd' routine
 
+% derive a list of channel labels for the given stream info
+function channels = derive_channel_labels(info)
+    channels = {};
+    ch = info.desc().child('channels').child('channel');
+    while ~ch.empty()
+        name = ch.child_value_n('label');
+        if name
+            channels{end+1} = name; end %#ok<AGROW>
+        ch = ch.next_sibling_n('channel');
+    end
+    if length(channels) ~= info.channel_count()
+        disp('The number of channels in the steam does not match the number of labeled channel records. Using numbered labels.');
+        channels = cellfun(@(k)['Ch' num2str(k)],num2cell(1:info.channel_count(),1),'UniformOutput',false);
+    end

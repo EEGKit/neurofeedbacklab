@@ -223,9 +223,9 @@ if ~isempty(g.measure.freqlabels)
     if length(g.measure.freqlabels) ~= length(g.measure.freqrange)
         error('The length of frequency band labels (freqlabels) and frequency band ranges need to be the same')
     end
-    if isempty(g.input.chanlocs)
-        error('You need to provide channel location structure with channel labels when using ''freqlabels'' option')
-    end
+    % if isempty(g.input.chanlocs)
+    %     error('You need to provide channel location structure with channel labels when using ''freqlabels'' option')
+    % end
 end
 
 % fir filter below (preserve phase but long delay)
