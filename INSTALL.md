@@ -18,11 +18,9 @@
 
 6. Stats EEGLAB by going to the EEGLAB folder and typing "eeglab"
 
-7. Use *nfblab_check_computation.m* to check Neurofeedbacklab real-time computation against a standard EEGLAB pipeline.
+7. Adapt *nfblab_muse.m* for your headset
 
-8. Adapt *nfblab_muse.m* for your headset
-
-9. Type *nfblab_process('help', true)* to see Neurofeedbacklab parameters.
+8. Type *nfblab_process('help', true)* to see Neurofeedbacklab parameters.
 
 The default LSL stream type is set to "EEG" ("lsltype" variable in nfblab_options.m file), and the default LSL name is set to empty ("lslname" variable in nfblab_options.m file), which should work in most case to connect to a LSL EEG stream if it is available on your platform. However, in some cases, you might want to change these variables and also check that the stream is visible on your system.
 
@@ -54,6 +52,10 @@ figure; plot(chunk');
 ```
 
 If successful, the variable <i>chunk</i> should contain a chunk of data, and it should show on the command line. Otherwise, it will show [] (which means empty in Matlab) or generate an error. You can also use the function lsl_resolve_byprop to find streams (lsl_resolve_byprop(lib, 'type', ‘EEG', 'name’, ‘’)).
+
+# Testing
+
+Use *tests/nfblab_check_computation.m* to check Neurofeedbacklab real-time computation against a standard EEGLAB pipeline. WARNING: functions have changed signature and might need some fixing.
 
 # Getting started with running Neurofeedback experiments
 
